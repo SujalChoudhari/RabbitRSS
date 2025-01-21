@@ -14,6 +14,13 @@ export const storage = {
     localStorage.setItem(FEEDS_KEY, JSON.stringify(feeds))
   },
 
+  removeFeed: (feedId: string) => {
+    const feeds = storage.getFeeds()
+    const updatedFeeds = feeds.filter((feed) => feed.id !== feedId)
+    storage.saveFeeds(updatedFeeds)
+    return updatedFeeds
+  },
+
   addFeed: (feed: Feed) => {
     const feeds = storage.getFeeds()
     storage.saveFeeds([...feeds, feed])

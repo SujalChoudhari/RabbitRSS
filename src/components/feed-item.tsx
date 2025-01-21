@@ -14,7 +14,9 @@ export const FeedItem = React.memo(({ item, onClick }: FeedItemProps) => {
   return (
     <Card className="bg-zinc-900 mx-6 border-zinc-800 hover:bg-zinc-800 cursor-pointer transition-colors" onClick={onClick}>
       <CardHeader className="p-4">
-        <CardTitle className="text-white text-base">{cleanHtml(item.title).slice(0, 50)}...</CardTitle>
+        <CardTitle className="text-white text-base">
+          {cleanHtml(item.title).slice(0, window.innerWidth < 768 ? 50 : undefined)}
+        </CardTitle>
       </CardHeader>
       <CardContent className="p-4 pt-0">
         {item.thumbnail && (
@@ -28,7 +30,9 @@ export const FeedItem = React.memo(({ item, onClick }: FeedItemProps) => {
             />
           </div>
         )}
-        <p className="text-zinc-400 text-sm line-clamp-2">{cleanHtml(item.description).slice(0, 100)}...</p>
+        <p className="text-zinc-400 text-sm line-clamp-2">
+          {cleanHtml(item.description).slice(0, window.innerWidth < 768 ? 100 : undefined)}
+        </p>
       </CardContent>
     </Card>
   )

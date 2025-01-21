@@ -10,40 +10,150 @@ import type { Feed, FeedItem as FeedItemType } from "@/types/feed"
 import { BellDot, ChevronLeft, MoveLeft, PlusIcon } from "lucide-react"
 import { parseFeed } from "@/utils/parser"
 import { useVirtualizer } from "@tanstack/react-virtual"
+import { useToast } from "@/hooks/use-toast"
+
+
 
 export default function Home() {
   const [feeds, setFeeds] = useState<Feed[]>([])
   const [selectedFeed, setSelectedFeed] = useState<Feed | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
+  const { toast } = useToast()
+
+  // Register service worker and set up notifications
+  useEffect(() => {
+    async function setupNotifications() {
+      if ('serviceWorker' in navigator && 'Notification' in window) {
+        try {
+          // Register service worker
+          const registration = await navigator.serviceWorker.register('/sw.js')
+          console.log('Service Worker registered')
+
+          // Check if notifications are already enabled
+          const permission = await Notification.permission
+          setNotificationsEnabled(permission === 'granted')
+
+          // Set up periodic feed checking (every 2 hours)
+          setInterval(async () => {
+            await fetch('/api/feeds/check')
+          }, 2 * 60 * 60 * 1000)
+        } catch (error) {
+          console.error('Error setting up notifications:', error)
+        }
+      }
+    }
+
+    setupNotifications()
+  }, [])
+
+  const requestNotificationPermission = async () => {
+    try {
+      const permission = await Notification.requestPermission()
+      setNotificationsEnabled(permission === "granted")
+
+      if (permission === "granted") {
+        // Get service worker registration
+        const registration = await navigator.serviceWorker.ready
+
+        // Subscribe to push notifications
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+        })
+
+        // Send subscription to backend
+        await fetch('/api/notifications', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(subscription)
+        })
+
+        toast({
+          title: "Notifications enabled",
+          description: "You'll receive notifications even when the site is closed."
+        })
+      }
+    } catch (error) {
+      console.error("Error enabling notifications:", error)
+      toast({
+        title: "Error enabling notifications",
+        description: "Please try again later.",
+        variant: "destructive"
+      })
+    }
+  }
+
+
+  const showNotification = useCallback((feedTitle: string, newItemsCount: number) => {
+    if (!notificationsEnabled || !('Notification' in window)) return
+
+    try {
+      new Notification('New RSS Updates', {
+        body: `${feedTitle} has ${newItemsCount} new ${newItemsCount === 1 ? 'article' : 'articles'}`,
+        icon: '/favicon.ico'
+      })
+    } catch (error) {
+      console.error('Error showing notification:', error)
+    }
+  }, [notificationsEnabled])
 
   const refreshFeeds = useCallback(async () => {
-    const currentFeeds = storage.getFeeds()
-    const refreshedFeeds = await Promise.all(
-      currentFeeds.map(async (feed) => {
-        try {
-          const newFeed = await parseFeed(feed.url)
-          const updatedItems = newFeed.items.map((newItem) => {
-            const existingItem = feed.items.find((item) => item.link === newItem.link)
-            return existingItem ? { ...newItem, isRead: existingItem.isRead } : newItem
-          })
-          return { ...newFeed, items: updatedItems }
-        } catch (error) {
-          console.error(`Failed to refresh feed: ${feed.url}`, error)
-          return feed
-        }
-      }),
-    )
-    storage.saveFeeds(refreshedFeeds)
-    setFeeds(refreshedFeeds)
-    if (selectedFeed) {
-      setSelectedFeed(refreshedFeeds.find((f) => f.id === selectedFeed.id) || null)
+    try {
+      const currentFeeds = storage.getFeeds()
+      const refreshedFeeds = await Promise.all(
+        currentFeeds.map(async (feed) => {
+          try {
+            const newFeed = await parseFeed(feed.url)
+            let newItemsCount = 0
+
+            const updatedItems = newFeed.items.map((newItem) => {
+              const existingItem = feed.items.find((item) => item.link === newItem.link)
+              if (!existingItem) {
+                newItemsCount++
+                return { ...newItem, isRead: false }
+              }
+              return { ...newItem, isRead: existingItem.isRead }
+            })
+
+            if (newItemsCount > 0 && notificationsEnabled) {
+              showNotification(feed.title, newItemsCount)
+            }
+
+            return { ...newFeed, items: updatedItems }
+          } catch (error) {
+            console.error(`Failed to refresh feed: ${feed.url}`, error)
+            return feed
+          }
+        })
+      )
+
+      storage.saveFeeds(refreshedFeeds)
+      setFeeds(refreshedFeeds)
+
+      if (selectedFeed) {
+        setSelectedFeed(refreshedFeeds.find((f) => f.id === selectedFeed.id) || null)
+      }
+    } catch (error) {
+      console.error('Error refreshing feeds:', error)
     }
-  }, [selectedFeed])
+  }, [selectedFeed, notificationsEnabled, showNotification])
 
   useEffect(() => {
     setFeeds(storage.getFeeds())
-    //refreshFeeds()
-    const intervalId = setInterval(refreshFeeds, 5 * 60 * 1000) // Refresh every 5 minutes
+
+    // Check if notifications are already enabled
+    setNotificationsEnabled(Notification.permission === "granted")
+
+    // Initial refresh
+    refreshFeeds()
+
+    // Set up refresh interval (2 hours)
+    const intervalId = setInterval(refreshFeeds, 2 * 60 * 60 * 1000)
+
+    // Clean up interval on unmount
     return () => clearInterval(intervalId)
   }, [refreshFeeds])
 
@@ -87,17 +197,30 @@ export default function Home() {
       <div className="w-full md:w-80 border-r border-zinc-800 feed-list">
         <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
           <h1 className="text-lg font-medium text-white">🐇 Rabbit RSS</h1>
-          <Button
-            onClick={() => setDialogOpen(true)}
-            variant="ghost"
-            size="icon"
-            className="text-white"
-          >
-            <PlusIcon className="h-5 w-5" />
-          </Button>
+          <div className="flex gap-2">
+            {!notificationsEnabled && (
+              <Button
+                onClick={requestNotificationPermission}
+                variant="ghost"
+                size="icon"
+                className="text-white"
+                title="Enable notifications"
+              >
+                <BellDot className="h-5 w-5" />
+              </Button>
+            )}
+            <Button
+              onClick={() => setDialogOpen(true)}
+              variant="ghost"
+              size="icon"
+              className="text-white"
+            >
+              <PlusIcon className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
         <ScrollArea className="h-[calc(100vh-5rem)]">
-          <div className="p-4 space-y-4">
+          <div className="py-4 mx-2 space-y-4">
             {/* Feeds with unread items */}
             {feeds
               .filter((feed) => feed.items.some((item) => !item.isRead)) // Only feeds with unread items
@@ -125,7 +248,11 @@ export default function Home() {
                     <div className="flex justify-between items-start">
                       <div>
                         <h3 className="text-white font-bold">{feed.title}</h3>
-                        <p className="text-zinc-400 text-sm truncate">{feed.url}</p>
+                        <p className="text-zinc-400 text-sm truncate">
+                          {feed.url.startsWith("https://medium.com/")
+                            ? "@" + feed.url.split("@")[1]
+                            : feed.url}
+                        </p>
                       </div>
                       <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium leading-none text-black transform bg-white rounded-full">
                         <BellDot size={16} className="mr-2" />{unreadCount}
@@ -160,7 +287,11 @@ export default function Home() {
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="text-white">{feed.title}</h3>
-                      <p className="text-zinc-400 text-sm truncate">{feed.url}</p>
+                      <p className="text-zinc-400 text-sm truncate">
+                        {feed.url.startsWith("https://medium.com/")
+                          ? "@" + feed.url.split("@")[1]
+                          : feed.url}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -199,6 +330,8 @@ export default function Home() {
                 variant="default"
                 className="text-white"
                 onClick={() => {
+                  storage.removeFeed(selectedFeed.id)
+                  setFeeds(storage.getFeeds())
                 }}
               >
                 Unsubscribe

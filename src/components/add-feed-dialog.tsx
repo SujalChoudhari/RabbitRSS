@@ -1,47 +1,60 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { parseFeed, formatMediumUrl } from "../utils/parser"
-import { storage } from "../utils/storage"
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { parseFeed, formatMediumUrl } from "../utils/parser";
+import { storage } from "../utils/storage";
+// import { Loader } from "@/components/ui/loader"; // Assuming you have a Loader component
 
 interface AddFeedDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onFeedAdded: () => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onFeedAdded: () => void;
 }
 
 export function AddFeedDialog({ open, onOpenChange, onFeedAdded }: AddFeedDialogProps) {
-  const [url, setUrl] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [username, setUsername] = useState("")
+  const [url, setUrl] = useState("");
+  const [username, setUsername] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setUrl("");
+      setUsername("");
+      setError(null);
+    }
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
 
     try {
-      if (username.length !== 0) {
-        console.log("username", username)
-        const formattedUrl = formatMediumUrl(username)
-        const feed = await parseFeed(formattedUrl)
-        storage.addFeed(feed)
+      let feed;
+      if (username.trim().length > 0) {
+        const formattedUrl = formatMediumUrl(username.trim());
+        feed = await parseFeed(formattedUrl);
+      } else if (url.trim().length > 0) {
+        feed = await parseFeed(url.trim());
       } else {
-        console.log("url", url)
-        const feed = await parseFeed(url)
-        storage.addFeed(feed)
+        throw new Error("Please provide a valid URL or Medium username.");
       }
-      onFeedAdded()
-      onOpenChange(false)
-      setUrl("")
-    } catch (error) {
-      console.error("Failed to add feed:", error)
+
+      storage.addFeed(feed);
+      onFeedAdded();
+      onOpenChange(false);
+    } catch (error: any) {
+      setError(error.message || "An error occurred while adding the feed.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
+
+  const isSubmitDisabled = loading || (!url.trim() && !username.trim());
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -50,20 +63,41 @@ export function AddFeedDialog({ open, onOpenChange, onFeedAdded }: AddFeedDialog
           <DialogTitle className="text-white">Add Feed</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* URL Input */}
           <Input
-            placeholder="https://example.com/feed.xml"
+            placeholder="Enter RSS feed URL (e.g., https://example.com/feed.xml)"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={(e) => {
+              setUrl(e.target.value);
+              if (username) setUsername("");
+            }}
             className="bg-zinc-900 border-gray-700 text-white"
+            disabled={loading}
           />
           <div className="text-center text-gray-400">--- or ---</div>
-          <Input placeholder="@username" value={username} onChange={(e) => setUsername(e.target.value)} className="bg-zinc-900 border-gray-700 text-white" />
-          <Button type="submit" disabled={loading} className="w-full bg-white text-gray-900 hover:bg-gray-100">
-            Done
+          {/* Username Input */}
+          <Input
+            placeholder="Enter Medium username (e.g., @username)"
+            value={username}
+            onChange={(e) => {
+              setUsername(e.target.value);
+              if (url) setUrl("");
+            }}
+            className="bg-zinc-900 border-gray-700 text-white"
+            disabled={loading}
+          />
+          {/* Error Message */}
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            disabled={isSubmitDisabled}
+            className={`w-full ${loading ? "bg-gray-700" : "bg-white text-gray-900 hover:bg-gray-100"}`}
+          >
+            {loading ? "Loading..." : "Add Feed"}
           </Button>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
-
