@@ -131,7 +131,7 @@ export default function Home() {
         <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
           <h1 className="text-lg font-medium text-white">🐇 Rabbit RSS</h1>
           <div className="flex gap-2">
-            
+
             <Button
               onClick={() => setDialogOpen(true)}
               variant="ghost"
@@ -214,8 +214,8 @@ export default function Home() {
                     <div>
                       <h3 className="text-white">{feed.title}</h3>
                       <p className="text-zinc-400 text-sm truncate">
-                        {feed.url.startsWith("https://medium.com/")
-                          ? "@" + feed.url.split("@")[1]
+                        {feed.url.length > 20
+                          ? "..." + feed.url.slice(-17)
                           : feed.url}
                       </p>
                     </div>
