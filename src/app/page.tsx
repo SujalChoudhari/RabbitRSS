@@ -7,11 +7,11 @@ import { AddFeedDialog } from "@/components/add-feed-dialog"
 import { FeedItem } from "@/components/feed-item"
 import { storage } from "@/utils/storage"
 import type { Feed, FeedItem as FeedItemType } from "@/types/feed"
-import { BellDot, ChevronLeft, MoveLeft, PlusIcon } from "lucide-react"
+import { Bell, BellDot, ChevronLeft, MoveLeft, PlusIcon } from "lucide-react"
 import { parseFeed } from "@/utils/parser"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useToast } from "@/hooks/use-toast"
-
+import { formatDistanceToNow } from 'date-fns';
 
 
 export default function Home() {
@@ -148,13 +148,13 @@ export default function Home() {
     setNotificationsEnabled(Notification.permission === "granted")
 
     // Initial refresh
-    refreshFeeds()
+    // refreshFeeds()
 
     // Set up refresh interval (2 hours)
-    const intervalId = setInterval(refreshFeeds, 2 * 60 * 60 * 1000)
+    // const intervalId = setInterval(refreshFeeds, 2 * 60 * 60 * 1000)
 
     // Clean up interval on unmount
-    return () => clearInterval(intervalId)
+    // return () => clearInterval(intervalId)
   }, [refreshFeeds])
 
   const handleFeedAdded = useCallback(() => {
@@ -253,9 +253,12 @@ export default function Home() {
                             ? "@" + feed.url.split("@")[1]
                             : feed.url}
                         </p>
+                        <p className="text-zinc-400 text-sm">
+                        {formatDistanceToNow(new Date(feed.items[0]?.pubDate || 0), { addSuffix: true })}
+                        </p>
                       </div>
                       <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium leading-none text-black transform bg-white rounded-full">
-                        <BellDot size={16} className="mr-2" />{unreadCount}
+                        <Bell size={16} className="mr-2" />{unreadCount}
                       </span>
                     </div>
                   </div>

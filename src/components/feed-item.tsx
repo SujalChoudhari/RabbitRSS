@@ -2,6 +2,7 @@ import React from "react"
 import type { FeedItem as FeedItemType } from "../types/feed"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Image from "next/image"
+import { formatDistanceToNow } from 'date-fns';
 
 const cleanHtml = (html: string) => html.replace(/<\/?[^>]+(>|$)/g, "")
 
@@ -17,6 +18,7 @@ export const FeedItem = React.memo(({ item, onClick }: FeedItemProps) => {
         <CardTitle className="text-white text-base">
           {cleanHtml(item.title).slice(0, window.innerWidth < 768 ? 50 : undefined)}
         </CardTitle>
+        <time className="text-zinc-400 text-sm">{formatDistanceToNow(new Date(item.pubDate).toLocaleString())}</time>
       </CardHeader>
       <CardContent className="p-4 pt-0">
         {item.thumbnail && (
