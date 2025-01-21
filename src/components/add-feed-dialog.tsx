@@ -60,7 +60,7 @@ const feedTypes: FeedType[] = [
     value: "youtube",
     label: "YouTube",
     placeholder: "Enter YouTube channel ID",
-    urlTemplate: (input: string) => 
+    urlTemplate: (input: string) =>
       `https://www.youtube.com/feeds/videos.xml?channel_id=${input}`,
   },
   {
@@ -96,7 +96,7 @@ export function AddFeedDialog({
   open,
   onOpenChange,
   onFeedAdded,
-}: AddFeedDialogProps): JSX.Element {
+}: AddFeedDialogProps) {
   const [url, setUrl] = useState<string>("");
   const [feedType, setFeedType] = useState<string>("rss");
   const [loading, setLoading] = useState<boolean>(false);
@@ -140,8 +140,8 @@ export function AddFeedDialog({
       onOpenChange(false);
     } catch (error) {
       setError(
-        error instanceof Error 
-          ? error.message 
+        error instanceof Error
+          ? error.message
           : "Failed to add feed. Please check the URL and try again."
       );
     } finally {
@@ -159,12 +159,12 @@ export function AddFeedDialog({
             Add New Feed
           </DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div className="space-y-2">
             <label className="text-sm text-zinc-400">Feed Type</label>
-            <Select 
-              value={feedType} 
+            <Select
+              value={feedType}
               onValueChange={(value: string) => setFeedType(value)}
             >
               <SelectTrigger className="w-full bg-zinc-800 border-zinc-700 text-white">
@@ -172,8 +172,8 @@ export function AddFeedDialog({
               </SelectTrigger>
               <SelectContent className="bg-zinc-800 border-zinc-700">
                 {feedTypes.map((type) => (
-                  <SelectItem 
-                    key={type.value} 
+                  <SelectItem
+                    key={type.value}
                     value={type.value}
                     className="text-white hover:bg-zinc-700"
                   >
@@ -191,7 +191,7 @@ export function AddFeedDialog({
             <Input
               placeholder={selectedFeedType?.placeholder}
               value={url}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 setUrl(e.target.value)
               }
               className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
@@ -208,11 +208,10 @@ export function AddFeedDialog({
           <Button
             type="submit"
             disabled={loading || !url.trim()}
-            className={`w-full h-10 ${
-              loading 
-                ? "bg-zinc-700 cursor-not-allowed" 
+            className={`w-full h-10 ${loading
+                ? "bg-zinc-700 cursor-not-allowed"
                 : "bg-white text-zinc-900 hover:bg-zinc-100"
-            }`}
+              }`}
           >
             {loading ? "Adding Feed..." : "Add Feed"}
           </Button>
