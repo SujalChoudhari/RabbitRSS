@@ -23,7 +23,7 @@ export const FeedItem = React.memo(({ item, onClick }: FeedItemProps) => {
       <CardContent className="p-4 pt-0">
         {item.thumbnail && (
           <div className="mb-2">
-            <Image
+            <img
               src={item.thumbnail || "/placeholder.svg"}
               alt={cleanHtml(item.title)}
               width={200}

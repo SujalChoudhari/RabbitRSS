@@ -172,8 +172,8 @@ export default function Home() {
                       <div>
                         <h3 className="text-white font-bold">{feed.title}</h3>
                         <p className="text-zinc-400 text-sm truncate">
-                          {feed.url.startsWith("https://medium.com/")
-                            ? "@" + feed.url.split("@")[1]
+                          {feed.url.length > 20
+                            ? "..." + feed.url.slice(-17)
                             : feed.url}
                         </p>
                         <p className="text-zinc-400 text-sm">
