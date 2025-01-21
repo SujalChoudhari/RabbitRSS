@@ -64,7 +64,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${instrumentSerif.variable} ${dmSerifDisplay.variable} antialiased`}
+        className={`${instrumentSerif.variable} ${dmSerifDisplay.variable} antialiased bg-black`}
       >
         {children}
         <Toaster />
