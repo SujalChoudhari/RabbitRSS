@@ -1,101 +1,258 @@
-import Image from "next/image";
+"use client"
+
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { AddFeedDialog } from "@/components/add-feed-dialog"
+import { FeedItem } from "@/components/feed-item"
+import { storage } from "@/utils/storage"
+import type { Feed, FeedItem as FeedItemType } from "@/types/feed"
+import { BellDot, ChevronLeft, MoveLeft, PlusIcon } from "lucide-react"
+import { parseFeed } from "@/utils/parser"
+import { useVirtualizer } from "@tanstack/react-virtual"
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [feeds, setFeeds] = useState<Feed[]>([])
+  const [selectedFeed, setSelectedFeed] = useState<Feed | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  const refreshFeeds = useCallback(async () => {
+    const currentFeeds = storage.getFeeds()
+    const refreshedFeeds = await Promise.all(
+      currentFeeds.map(async (feed) => {
+        try {
+          const newFeed = await parseFeed(feed.url)
+          const updatedItems = newFeed.items.map((newItem) => {
+            const existingItem = feed.items.find((item) => item.link === newItem.link)
+            return existingItem ? { ...newItem, isRead: existingItem.isRead } : newItem
+          })
+          return { ...newFeed, items: updatedItems }
+        } catch (error) {
+          console.error(`Failed to refresh feed: ${feed.url}`, error)
+          return feed
+        }
+      }),
+    )
+    storage.saveFeeds(refreshedFeeds)
+    setFeeds(refreshedFeeds)
+    if (selectedFeed) {
+      setSelectedFeed(refreshedFeeds.find((f) => f.id === selectedFeed.id) || null)
+    }
+  }, [selectedFeed])
+
+  useEffect(() => {
+    setFeeds(storage.getFeeds())
+    //refreshFeeds()
+    const intervalId = setInterval(refreshFeeds, 5 * 60 * 1000) // Refresh every 5 minutes
+    return () => clearInterval(intervalId)
+  }, [refreshFeeds])
+
+  const handleFeedAdded = useCallback(() => {
+    setFeeds(storage.getFeeds())
+  }, [])
+
+  const handleItemClick = useCallback(
+    (item: FeedItemType) => {
+      if (selectedFeed) {
+        const updatedFeeds = storage.markItemAsRead(selectedFeed.id, item.id)
+        setFeeds(updatedFeeds)
+        const updatedFeed = updatedFeeds.find((f) => f.id === selectedFeed.id)
+        if (updatedFeed) {
+          setSelectedFeed(updatedFeed)
+        }
+      }
+      window.open(item.link, "_blank")
+    },
+    [selectedFeed],
+  )
+
+  const { unreadItems, readItems } = useMemo(() => {
+    const unread = selectedFeed?.items.filter((item) => !item.isRead) || []
+    const read = selectedFeed?.items.filter((item) => item.isRead) || []
+    return { unreadItems: unread, readItems: read }
+  }, [selectedFeed])
+
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: unreadItems.length + readItems.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 100,
+    overscan: 5,
+  })
+
+  return (
+    <div className="flex h-screen bg-black">
+      {/* Sidebar */}
+      <div className="w-full md:w-80 border-r border-zinc-800 feed-list">
+        <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
+          <h1 className="text-lg font-medium text-white">🐇 Rabbit RSS</h1>
+          <Button
+            onClick={() => setDialogOpen(true)}
+            variant="ghost"
+            size="icon"
+            className="text-white"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            <PlusIcon className="h-5 w-5" />
+          </Button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        <ScrollArea className="h-[calc(100vh-5rem)]">
+          <div className="p-4 space-y-4">
+            {/* Feeds with unread items */}
+            {feeds
+              .filter((feed) => feed.items.some((item) => !item.isRead)) // Only feeds with unread items
+              .sort(
+                (a, b) =>
+                  new Date(b.items[0]?.pubDate || 0).getTime() -
+                  new Date(a.items[0]?.pubDate || 0).getTime()
+              )
+              .map((feed) => {
+                const unreadCount = feed.items.filter((item) => !item.isRead).length;
+                return (
+                  <div
+                    key={feed.id}
+                    className={`p-4 rounded-lg cursor-pointer ${selectedFeed?.id === feed.id ? "bg-zinc-900" : "hover:bg-zinc-900"
+                      } ${unreadCount > 0 ? "ring-1 ring-white/20" : ""}`}
+                    onClick={() => {
+                      setSelectedFeed(feed);
+                      // On mobile, hide the feed list when a feed is selected
+                      if (window.innerWidth < 768) {
+                        document.querySelector(".feed-list")?.classList.add("hidden");
+                        document.querySelector(".feed-content")?.classList.remove("hidden");
+                      }
+                    }}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-white font-bold">{feed.title}</h3>
+                        <p className="text-zinc-400 text-sm truncate">{feed.url}</p>
+                      </div>
+                      <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium leading-none text-black transform bg-white rounded-full">
+                        <BellDot size={16} className="mr-2" />{unreadCount}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+            {/* Feeds with no unread items */}
+            {feeds
+              .filter((feed) => feed.items.every((item) => item.isRead)) // Only feeds with no unread items
+              .sort(
+                (a, b) =>
+                  new Date(b.items[0]?.pubDate || 0).getTime() -
+                  new Date(a.items[0]?.pubDate || 0).getTime()
+              )
+              .map((feed) => (
+                <div
+                  key={feed.id}
+                  className={`p-4 rounded-lg cursor-pointer ${selectedFeed?.id === feed.id ? "bg-zinc-900" : "hover:bg-zinc-900"
+                    }`}
+                  onClick={() => {
+                    setSelectedFeed(feed);
+                    // On mobile, hide the feed list when a feed is selected
+                    if (window.innerWidth < 768) {
+                      document.querySelector(".feed-list")?.classList.add("hidden");
+                      document.querySelector(".feed-content")?.classList.remove("hidden");
+                    }
+                  }}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-white">{feed.title}</h3>
+                      <p className="text-zinc-400 text-sm truncate">{feed.url}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+          </div>
+          {/* Another Add Feed Button */}
+          <Button
+            onClick={() => setDialogOpen(true)}
+            variant="outline"
+            size="sm"
+            className="mx-auto flex items-center justify-center"
+          >
+            <PlusIcon className="h-5 w-5 mr-2" />
+            <span className="text-sm font-medium">Add New RSS Feed</span>
+          </Button>
+        </ScrollArea>
+      </div>
+
+      {/* Main Content */}
+      <div className="w-full md:flex flex-col flex-1 feed-content hidden">
+        {selectedFeed ? (
+          <div className="flex-1">
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+              <Button
+                variant="ghost"
+                className="md:hidden mr-2 text-white"
+                onClick={() => {
+                  document.querySelector(".feed-list")?.classList.remove("hidden")
+                  document.querySelector(".feed-content")?.classList.add("hidden")
+                }}
+              >
+                <ChevronLeft />
+              </Button>
+              <h2 className="text-xl font-bold text-white">{selectedFeed.title}</h2>
+              <Button
+                variant="default"
+                className="text-white"
+                onClick={() => {
+                }}
+              >
+                Unsubscribe
+              </Button>
+
+            </div>
+            <ScrollArea className="h-[calc(100vh-5rem)]" ref={parentRef}>
+              <div className="space-y-4 mt-4">
+                {/* Unread Items */}
+                {unreadItems.length > 0 && (
+                  <>
+                    <p className="mx-6 text-sm text-zinc-400">Unread</p>
+                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      if (virtualRow.index >= unreadItems.length) return null; // Skip read items here
+
+                      const item = unreadItems[virtualRow.index];
+                      return (
+                        <div key={item.id}>
+                          <FeedItem item={item} onClick={() => handleItemClick(item)} />
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+
+                {/* Read Items */}
+                {readItems.length > 0 && (
+                  <>
+                    <p className="mx-6 mt-8 text-sm text-zinc-400">Read</p>
+                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      if (virtualRow.index < unreadItems.length) return null; // Skip unread items here
+
+                      const item = readItems[virtualRow.index - unreadItems.length];
+                      return (
+                        <div key={item.id}>
+                          <FeedItem item={item} onClick={() => handleItemClick(item)} />
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            </ScrollArea>
+
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-zinc-400">
+            Select a feed to view its contents
+          </div>
+        )}
+      </div>
+
+      <AddFeedDialog open={dialogOpen} onOpenChange={setDialogOpen} onFeedAdded={handleFeedAdded} />
     </div>
-  );
+  )
 }
+
